@@ -42,6 +42,8 @@ def build_index(overrides: dict[str, object]) -> dict:
     skipped_cancelled: list[str] = []
 
     for md in sorted(VAULT.glob("*.md")):
+        if md.name.startswith("MOC - "):
+            continue
         parsed = parse_filename(md.name)
         code = parsed["code"]
 
