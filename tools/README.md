@@ -1,9 +1,29 @@
 # norms_search
 
 Две функции поверх локального Obsidian-vault'а нормативной документации
-(`../Norms md/`): **список действующих норм** и **поиск пункта по номеру**.
+(`../vault/`): **список действующих норм** и **поиск пункта по номеру**.
 
 Изолированный MVP, не зависит от `2-Multi-Agent-Manager`.
+
+## Setup после clone
+
+В репо не входят тяжёлые артефакты (`.npz`, `venv/`, `paragraphs.jsonl`).
+Чтобы поднять всё локально:
+
+```bash
+cd tools
+python3 -m venv venv
+source venv/bin/activate
+pip install numpy sentence-transformers pyyaml
+
+python3 list_active.py --quiet          # active_norms.json (индекс норм)
+python3 extract_refs.py                 # refs_graph.json + секции «Связанные нормы»
+python3 embed_norms.py                  # embeddings.npz + semantic_neighbors.json
+python3 build_paragraph_index.py        # paragraphs.jsonl (парсинг всех пунктов)
+python3 embed_paragraphs.py             # paragraphs_embeddings.npz (для search.py)
+```
+
+После этого работают `find_paragraph.py`, `search.py`, `mcp_server.py`.
 
 ## Файлы
 
