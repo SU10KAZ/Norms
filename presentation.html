@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NormGraph — AI-система навигации по нормативным документам</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --card: #1a1a2e;
+    --border: #2a2a3e;
+    --accent: #6c63ff;
+    --accent2: #00d4aa;
+    --accent3: #ff6b6b;
+    --accent4: #ffd93d;
+    --text: #e8e8f0;
+    --muted: #8888a0;
+    --glow: rgba(108, 99, 255, 0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
+
+  /* ── Slide Container ── */
+  .slide {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 80px;
+    scroll-snap-align: start;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .slide::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 30% 40%, var(--glow) 0%, transparent 50%),
+                radial-gradient(circle at 70% 60%, rgba(0, 212, 170, 0.05) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .slide-content {
+    max-width: 1200px;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Navigation ── */
+  .nav {
+    position: fixed;
+    right: 30px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .nav a {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--border);
+    display: block;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+  }
+
+  .nav a:hover, .nav a.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    transform: scale(1.3);
+  }
+
+  /* ── Typography ── */
+  h1 {
+    font-size: 4.5rem;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -2px;
+    margin-bottom: 24px;
+  }
+
+  h2 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 20px;
+    letter-spacing: -1px;
+  }
+
+  h3 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+
+  .subtitle {
+    font-size: 1.5rem;
+    color: var(--muted);
+    font-weight: 300;
+    max-width: 700px;
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .highlight {
+    color: var(--accent2);
+    font-weight: 700;
+  }
+
+  /* ── Cards Grid ── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin-top: 40px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(108, 99, 255, 0.1);
+  }
+
+  .card-icon {
+    font-size: 2.5rem;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .card p {
+    color: var(--muted);
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  /* ── Stats Bar ── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    margin-top: 50px;
+  }
+
+  .stat {
+    text-align: center;
+    padding: 30px 20px;
+    background: var(--card);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    transition: all 0.4s;
+  }
+
+  .stat:hover {
+    border-color: var(--accent2);
+    box-shadow: 0 0 30px rgba(0, 212, 170, 0.1);
+  }
+
+  .stat-number {
+    font-size: 3.5rem;
+    font-weight: 900;
+    display: block;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .stat-label {
+    font-size: 0.9rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 500;
+  }
+
+  /* ── Pipeline ── */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-top: 40px;
+    flex-wrap: wrap;
+  }
+
+  .pipe-step {
+    flex: 1;
+    min-width: 180px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 28px 20px;
+    text-align: center;
+    position: relative;
+    transition: all 0.3s;
+  }
+
+  .pipe-step:first-child { border-radius: 16px 0 0 16px; }
+  .pipe-step:last-child { border-radius: 0 16px 16px 0; }
+
+  .pipe-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: -1px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-top: 15px solid transparent;
+    border-bottom: 15px solid transparent;
+    border-left: 15px solid var(--accent);
+    z-index: 2;
+    opacity: 0.6;
+  }
+
+  .pipe-step:hover {
+    background: rgba(108, 99, 255, 0.1);
+    border-color: var(--accent);
+  }
+
+  .pipe-icon { font-size: 2rem; margin-bottom: 10px; display: block; }
+  .pipe-label { font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; }
+  .pipe-detail { font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+
+  /* ── Comparison Table ── */
+  .comparison {
+    width: 100%;
+    margin-top: 40px;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .comparison th {
+    background: var(--card);
+    padding: 18px 24px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    border-bottom: 2px solid var(--accent);
+  }
+
+  .comparison td {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+  }
+
+  .comparison tr:nth-child(even) td {
+    background: rgba(26, 26, 46, 0.5);
+  }
+
+  .comparison tr:hover td {
+    background: rgba(108, 99, 255, 0.05);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .badge-purple { background: rgba(108, 99, 255, 0.2); color: var(--accent); }
+  .badge-green { background: rgba(0, 212, 170, 0.2); color: var(--accent2); }
+  .badge-red { background: rgba(255, 107, 107, 0.2); color: var(--accent3); }
+  .badge-yellow { background: rgba(255, 217, 61, 0.2); color: var(--accent4); }
+
+  /* ── Demo Block ── */
+  .demo-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin-top: 30px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.9rem;
+    line-height: 1.8;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .demo-box::before {
+    content: 'LIVE DEMO';
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent3);
+    font-family: 'Inter', sans-serif;
+    padding: 3px 10px;
+    border: 1px solid var(--accent3);
+    border-radius: 4px;
+    opacity: 0.7;
+  }
+
+  .demo-prompt { color: var(--accent2); }
+  .demo-response { color: var(--muted); padding-left: 20px; }
+  .demo-highlight { color: var(--accent4); font-weight: 600; }
+
+  /* ── Feature List ── */
+  .features {
+    list-style: none;
+    margin-top: 30px;
+  }
+
+  .features li {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    font-size: 1.05rem;
+  }
+
+  .features li:last-child { border-bottom: none; }
+
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    background: rgba(108, 99, 255, 0.1);
+    border: 1px solid rgba(108, 99, 255, 0.2);
+  }
+
+  .feature-text { flex: 1; }
+  .feature-text strong { display: block; margin-bottom: 2px; }
+  .feature-text span { color: var(--muted); font-size: 0.9rem; }
+
+  /* ── Architecture Diagram ── */
+  .arch-diagram {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    align-items: center;
+    gap: 0;
+    margin-top: 40px;
+    padding: 40px;
+    background: var(--card);
+    border-radius: 20px;
+    border: 1px solid var(--border);
+  }
+
+  .arch-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+
+  .arch-block:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px var(--glow);
+  }
+
+  .arch-arrow {
+    font-size: 2rem;
+    color: var(--accent);
+    text-align: center;
+    padding: 0 10px;
+    opacity: 0.6;
+  }
+
+  .arch-block-icon {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  /* ── Slide Counter ── */
+  .slide-counter {
+    position: absolute;
+    bottom: 30px;
+    left: 80px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 500;
+    letter-spacing: 2px;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .slide { padding: 40px 24px; }
+    h1 { font-size: 2.5rem; }
+    h2 { font-size: 1.8rem; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .cards { grid-template-columns: 1fr; }
+    .pipeline { flex-direction: column; }
+    .pipe-step { border-radius: 12px !important; }
+    .pipe-step::after { display: none; }
+    .arch-diagram { grid-template-columns: 1fr; }
+    .arch-arrow { transform: rotate(90deg); }
+    .nav { display: none; }
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(40px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .slide-content > * {
+    animation: fadeUp 0.8s ease-out both;
+  }
+
+  .slide-content > *:nth-child(2) { animation-delay: 0.15s; }
+  .slide-content > *:nth-child(3) { animation-delay: 0.3s; }
+  .slide-content > *:nth-child(4) { animation-delay: 0.45s; }
+
+  /* ── Footer ── */
+  .footer-tag {
+    position: absolute;
+    bottom: 30px;
+    right: 80px;
+    font-size: 0.75rem;
+    color: var(--muted);
+    opacity: 0.5;
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation dots -->
+<nav class="nav">
+  <a href="#slide-1" title="Главная"></a>
+  <a href="#slide-2" title="Проблема"></a>
+  <a href="#slide-3" title="Цифры"></a>
+  <a href="#slide-4" title="Как работает"></a>
+  <a href="#slide-5" title="Компоненты"></a>
+  <a href="#slide-6" title="Демо"></a>
+  <a href="#slide-7" title="Возможности"></a>
+  <a href="#slide-8" title="Архитектура"></a>
+  <a href="#slide-9" title="Итоги"></a>
+</nav>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SLIDE 1 — Title -->
+<!-- ════════════════════════════════════════════ -->
+<section class="slide" id="slide-1">
+  <div class="slide-content" style="text-align: center;">
+    <div style="font-size: 5rem; margin-bottom: 20px;">&#x1F3D7;&#xFE0F;</div>
+    <h1><span class="gradient-text">NormGraph</span></h1>
+    <p class="subtitle" style="margin: 0 auto 30px; max-width: 800px;">
+      AI-система навигации по 337 нормативным документам РФ.<br>
+      Семантический поиск, граф связей и прямой доступ для Claude.
+    </p>
+    <div style="display: flex; gap: 16px; justify-content: center; margin-top: 30px; flex-wrap: wrap;">
+      <span class="badge badge-purple" style="font-size: 0.9rem; padding: 8px 20px;">Obsidian Vault</span>
+      <span class="badge badge-green" style="font-size: 0.9rem; padding: 8px 20px;">MCP Server</span>
+      <span class="badge badge-yellow" style="font-size: 0.9rem; padding: 8px 20px;">RAG Search</span>
+      <span class="badge badge-red" style="font-size: 0.9rem; padding: 8px 20px;">Knowledge Graph</span>
+    </div>
+  </div>
+  <div class="slide-counter">01 / 09</div>
+</section>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SLIDE 2 — Problem -->
+<!-- ════════════════════════════════════════════ -->
+<section class="slide" id="slide-2">
+  <div class="slide-content">
+    <h2>&#x1F62B; Проблема: нормы — это хаос</h2>
+    <p class="subtitle" style="margin-bottom: 10px;">Строительные нормы РФ — это сотни документов, тысячи пунктов и запутанные перекрёстные ссылки.</p>
+
+    <div class="cards" style="margin-top: 30px;">
+      <div class="card">
+        <span class="card-icon">&#x1F4DA;</span>
+        <h3>337 документов</h3>
+        <p>ГОСТы, СП, СНиПы, ВСН, РД, ФЗ — каждый по 20-200 страниц. Искать нужный пункт вручную — часы работы.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">&#x1F517;</span>
+        <h3>1 420 перекрёстных ссылок</h3>
+        <p>Один документ ссылается на десятки других. Нарушить один пункт — значит нарушить цепочку из 5-6 связанных норм.</p>
+      </div>
+      <div class="card">
+        <span class="card-icon">&#x1F914;</span>
+        <h3>Непонятные формулировки</h3>
+        <p>Инженер помнит суть задачи («какой кабель на 100А?»), а не номер пункта. Поиск по тексту не работает — нужен поиск по смыслу.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-counter">02 / 09</div>
+</section>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SLIDE 3 — Numbers -->
+<!-- ════════════════════════════════════════════ -->
+<section class="slide" id="slide-3">
+  <div class="slide-content">
+    <h2 style="text-align: center;">&#x1F4CA; Система в цифрах</h2>
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-number gradient-text">337</span>
+        <span class="stat-label">Нормативных документов</span>
+      </div>
+      <div class="stat">
+        <span class="stat-number" style="color: var(--accent2);">41 619</span>
+        <span class="stat-label">Проиндексированных пунктов</span>
+      </div>
+      <div class="stat">
+        <span class="stat-number" style="color: var(--accent4);">1 420</span>
+        <span class="stat-label">Связей в графе цитирований</span>
+      </div>
+      <div class="stat">
+        <span class="stat-number" style="color: var(--accent3);">12</span>
+        <span class="stat-label">Тематических карт (MOC)</span>
+      </div>
+    </div>
+    <p style="text-align: center; color: var(--muted); margin-top: 30px; font-size: 0.95rem;">
+      ГОСТ, ГОСТ Р, СП, СНиП, ВСН, МДС, РД, ФЗ — полный набор строительных норм в одном хранилище
+    </p>
+  </div>
+  <div class="slide-counter">03 / 09</div>
+</section>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SLIDE 4 — How it works (Pipeline) -->
+<!-- ════════════════════════════════════════════ -->
+<section class="slide" id="slide-4">
+  <div class="slide-content">
+    <h2>&#x2699;&#xFE0F; Как это работает</h2>
+    <p class="subtitle">Конвейер из 6 этапов: от сырых PDF до умного ассистента</p>
+
+    <div class="pipeline">
+      <div class="pipe-step">
+        <span class="pipe-icon">&#x1F4C4;</span>
+        <div class="pipe-label">PDF &#x2192; Markdown</div>
+        <div class="pipe-detail">337 документов в Obsidian vault</div>
+      </div>
+      <div class="pipe-step">
+        <span class="pipe-icon">&#x1F517;</span>
+        <div class="pipe-label">Извлечение ссылок</div>
+        <div class="pipe-detail">1 420 связей между нормами</div>
+      </div>
+      <div class="pipe-step">
+        <span class="pipe-icon">&#x1F9E0;</span>
+        <div class="pipe-label">Эмбеддинги</div>
+        <div class="pipe-detail">e5-large модель, 41K векторов</div>
+      </div>
+      <div class="pipe-step">
+        <span class="pipe-icon">&#x1F50D;</span>
+        <div class="pipe-label">RAG индекс</div>
+        <div class="pipe-detail">Семантический поиск</div>
+      </div>
+      <div class="pipe-step">
+        <span class="pipe-icon">&#x1F916;</span>
+        <div class="pipe-label">MCP сервер</div>
+        <div class="pipe-detail">Claude вызывает напрямую</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+      <div class="card" style="border-left: 3px solid var(--accent);">
+        <h3>&#x1F4A1; Что такое эмбеддинги?</h3>
+        <p>Каждый пункт нормы превращается в вектор из 1024 чисел — «координату смысла». Похожие по содержанию пункты оказываются рядом в этом пространстве, даже если написаны разными словами.</p>
+      </div>
+      <div class="card" style="border-left: 3px solid var(--accent2);">
+        <h3>&#x1F4A1; Что такое MCP?</h3>
+        <p>Model Context Protocol — стандарт, который позволяет Claude самостоятельно обращаться к базе данных норм. Вы спрашиваете на обычном языке — Claude сам находит нужный пункт.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-counter">04 / 09</div>
+</section>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SLIDE 5 — Components -->
+<!-- ════════════════════════════════════════════ -->
+<section class="slide" id="slide-5">
+  <div class="slide-content">
+    <h2>&#x1F9F1; Компоненты системы</h2>
+
+    <table class="comparison">
+      <thead>
+        <tr>
+          <th style="width: 50px;"></th>
+          <th>Компонент</th>
+          <th>Скрипт</th>
+          <th>Что делает</th>
+          <th>Результат</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>&#x1F517;</td>
+          <td><strong>Граф цитирований</strong></td>
+          <td><span class="badge badge-purple">extract_refs.py</span></td>
+          <td>Находит все ссылки между документами регулярками</td>
+          <td>1 420 связей + frontmatter YAML</td>
+        </tr>
+        <tr>
+          <td>&#x1F9E0;</td>
+          <td><strong>Семантические соседи</strong></td>
+          <td><span class="badge badge-green">embed_norms.py</span></td>
+          <td>Эмбеддинги e5-large для каждой нормы</td>
+          <td>Top-5 ближайших по смыслу</td>
+        </tr>
+        <tr>
+          <td>&#x1F4D1;</td>
+          <td><strong>Индекс пунктов</strong></td>
+          <td><span class="badge badge-yellow">build_paragraph_index.py</span></td>
+          <td>Парсит все пункты/подпункты из 337 документов</td>
+          <td>41 619 пунктов (44 MB JSONL)</td>
+        </tr>
+        <tr>
+          <td>&#x1F50D;</td>
+          <td><strong>RAG-поиск</strong></td>
+          <td><span class="badge badge-red">search.py</span></td>
+          <td>Поиск по 41K пунктам через cosine similarity</td>
+          <td>Результаты за ~1 секунду</td>
+        </tr>
+        <tr>
+          <td>&#x1F916;</td>
+          <td><strong>MCP-сервер</strong></td>
+          <td><span class="badge badge-purple">mcp_server.py</span></td>
+          <td>4 инструмента для Claude: search, find, list, info</td>
+          <td>Claude читает нормы сам</td>
+        </tr>
+        <tr>
+          <td>&#x1F5FA;&#xFE0F;</td>
+          <td><strong>MOC-карты</strong></td>
+          <td><span class="badge badge-green">generate_moc.py</span></td>
+          <td>K-means кластеризация по тематикам</td>
+          <td>12 тематических индексов</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="slide-counter">05 / 09</div>
+</section>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SLIDE 6 — Demo -->
+<!-- ════════════════════════════════════════════ -->
+<section class="slide" id="slide-6">
+  <div class="slide-content">
+    <h2>&#x1F3AC; Как это выглядит в работе</h2>
+    <p class="subtitle">Простой вопрос на русском языке &#x2192; точный ответ с номером пункта</p>
+
+    <div class="demo-box" style="margin-top: 30px;">
+      <div style="margin-bottom: 20px;">
+        <span class="demo-prompt">&#x1F464; Пользователь:</span><br>
+        <span style="color: var(--text);">Какой кабель нужно выбрать при токе 100А?</span>
+      </div>
+      <div style="margin-bottom: 20px; padding-left: 20px; border-left: 2px solid var(--accent);">
+        <span style="color: var(--accent); font-size: 0.75rem; font-weight: 600;">&#x1F50D; MCP search: «выбор сечения кабеля при токе 100А»</span><br>
+        <span style="color: var(--accent); font-size: 0.75rem; font-weight: 600;">&#x1F4C4; MCP find_paragraph: ПУЭ 7 п. 1.3.10, табл. 1.3.4</span>
+      </div>
+      <div>
+        <span class="demo-prompt">&#x1F916; Claude:</span><br>
+        <span class="demo-response">Согласно <span class="demo-highlight">ПУЭ 7, таблица 1.3.4</span>:</span><br>
+        <span class="demo-response">&bull; Открытая прокладка, медь: <span class="demo-highlight">16 мм&#xB2;</span> (100А)</span><br>
+        <span class="demo-response">&bull; В трубе, 3 жилы, медь: <span class="demo-highlight">25 мм&#xB2;</span> (100А)</span><br>
+        <span class="demo-response">&bull; Трёхжильный кабель, медь: <span class="demo-highlight">35 мм&#xB2;</span> (100А)</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 30px;">
+      <div class="demo-box" style="font-size: 0.85rem;">
+        <div><span class="demo-prompt">&#x1F464;</span> Минимальная огнестойкость перекрытий?</div>
+        <div style="margin-top: 10px;"><span class="demo-prompt">&#x1F916;</span> <span class="demo-response">СП 112.13330, п. 5.18 — REI 45 для жилых...</span></div>
+      </div>
+      <div class="demo-box" style="font-size: 0.85rem;">
+        <div><span class="demo-prompt">&#x1F464;</span> Требования к заземлению в ванных?</div>
+        <div style="margin-top: 10px;"><span class="demo-prompt">&#x1F916;</span> <span class="demo-response">ПУЭ 7, п. 1.7.83 — ДСУП обязательна...</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-counter">06 / 09</div>
+</section>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SLIDE 7 — Capabilities -->
+<!-- ════════════════════════════════════════════ -->
+<section class="slide" id="slide-7">
+  <div class="slide-content">
+    <h2>&#x1F680; На что способна система</h2>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 10px;">
+      <ul class="features">
+        <li>
+          <div class="feature-icon">&#x1F50D;</div>
+          <div class="feature-text">
+            <strong>Семантический поиск</strong>
+            <span>Спрашивайте своими словами — система поймёт смысл, а не только ключевые слова</span>
+          </div>
+        </li>
+        <li>
+          <div class="feature-icon">&#x1F4CC;</div>
+          <div class="feature-text">
+            <strong>Точный пункт</strong>
+            <span>Не просто документ, а конкретный пункт и номер таблицы с контекстом</span>
+          </div>
+        </li>
+        <li>
+          <div class="feature-icon">&#x1F310;</div>
+          <div class="feature-text">
+            <strong>Граф зависимостей</strong>
+            <span>Видите, какие нормы ссылаются друг на друга — не упустите ни одну связь</span>
+          </div>
+        </li>
+        <li>
+          <div class="feature-icon">&#x1F3AF;</div>
+          <div class="feature-text">
+            <strong>Фильтры по типам</strong>
+            <span>Искать только по СП, только по ГОСТам или по всему сразу</span>
+          </div>
+        </li>
+      </ul>
+      <ul class="features">
+        <li>
+          <div class="feature-icon">&#x1F9E9;</div>
+          <div class="feature-text">
+            <strong>Похожие нормы</strong>
+            <span>Для каждого документа — 5 ближайших по смыслу, даже если они из другой области</span>
+          </div>
+        </li>
+        <li>
+          <div class="feature-icon">&#x1F5FA;&#xFE0F;</div>
+          <div class="feature-text">
+            <strong>Тематические карты</strong>
+            <span>12 MOC-заметок группируют нормы по темам: бетоны, лифты, пожаротушение...</span>
+          </div>
+        </li>
+        <li>
+          <div class="feature-icon">&#x1F916;</div>
+          <div class="feature-text">
+            <strong>Claude-интеграция</strong>
+            <span>AI сам обращается к нормам через MCP — вы просто спрашиваете</span>
+          </div>
+        </li>
+        <li>
+          <div class="feature-icon">&#x1F4D3;</div>
+          <div class="feature-text">
+            <strong>Obsidian vault</strong>
+            <span>Всё в Markdown — wiki-ссылки, граф, теги. Работает офлайн, вечно ваше</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-counter">07 / 09</div>
+</section>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SLIDE 8 — Architecture -->
+<!-- ════════════════════════════════════════════ -->
+<section class="slide" id="slide-8">
+  <div class="slide-content">
+    <h2>&#x1F3D7;&#xFE0F; Архитектура</h2>
+    <p class="subtitle">Три слоя: данные, интеллект, интерфейс</p>
+
+    <div class="arch-diagram">
+      <div class="arch-block">
+        <span class="arch-block-icon">&#x1F4DA;</span>
+        <h3 style="color: var(--accent4);">Данные</h3>
+        <p style="font-size: 0.85rem; color: var(--muted); margin-top: 8px;">
+          337 MD-файлов<br>
+          41 619 пунктов<br>
+          refs_graph.json<br>
+          paragraphs.jsonl
+        </p>
+      </div>
+      <div class="arch-arrow">&#x27A1;&#xFE0F;</div>
+      <div class="arch-block">
+        <span class="arch-block-icon">&#x1F9E0;</span>
+        <h3 style="color: var(--accent);">Интеллект</h3>
+        <p style="font-size: 0.85rem; color: var(--muted); margin-top: 8px;">
+          e5-large эмбеддинги<br>
+          Cosine similarity<br>
+          K-means кластеры<br>
+          877 MB векторов
+        </p>
+      </div>
+      <div class="arch-arrow">&#x27A1;&#xFE0F;</div>
+      <div class="arch-block">
+        <span class="arch-block-icon">&#x1F5A5;&#xFE0F;</span>
+        <h3 style="color: var(--accent2);">Интерфейс</h3>
+        <p style="font-size: 0.85rem; color: var(--muted); margin-top: 8px;">
+          MCP Server (4 tools)<br>
+          Obsidian + граф<br>
+          CLI поиск<br>
+          12 MOC-карт
+        </p>
+      </div>
+    </div>
+
+    <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+      <div class="card" style="padding: 20px; text-align: center;">
+        <div style="font-size: 0.75rem; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">MCP: search</div>
+        <div style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">Семантический поиск по всем пунктам</div>
+      </div>
+      <div class="card" style="padding: 20px; text-align: center;">
+        <div style="font-size: 0.75rem; color: var(--accent2); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">MCP: find_paragraph</div>
+        <div style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">Найти конкретный пункт по коду и номеру</div>
+      </div>
+      <div class="card" style="padding: 20px; text-align: center;">
+        <div style="font-size: 0.75rem; color: var(--accent4); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">MCP: norm_info</div>
+        <div style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">Метаданные, ссылки, соседи нормы</div>
+      </div>
+      <div class="card" style="padding: 20px; text-align: center;">
+        <div style="font-size: 0.75rem; color: var(--accent3); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">MCP: list_norms</div>
+        <div style="font-size: 0.85rem; color: var(--muted); margin-top: 4px;">Список всех 337 норм с фильтрами</div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-counter">08 / 09</div>
+</section>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SLIDE 9 — Summary -->
+<!-- ════════════════════════════════════════════ -->
+<section class="slide" id="slide-9">
+  <div class="slide-content" style="text-align: center;">
+    <h1 style="font-size: 3.5rem;">
+      <span class="gradient-text">337 норм. 41 619 пунктов.<br>Один вопрос.</span>
+    </h1>
+    <p class="subtitle" style="margin: 20px auto 40px; max-width: 700px; font-size: 1.3rem;">
+      Вместо часов поиска — секунды.<br>
+      Вместо запоминания номеров — вопрос на обычном языке.<br>
+      Вместо потерянных связей — полный граф зависимостей.
+    </p>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 800px; margin: 0 auto;">
+      <div class="card" style="text-align: center; border-top: 3px solid var(--accent);">
+        <div style="font-size: 2rem; margin-bottom: 10px;">&#x23F1;&#xFE0F;</div>
+        <h3>Было</h3>
+        <p>Часы ручного поиска по PDF-файлам и КонсультантПлюс</p>
+      </div>
+      <div class="card" style="text-align: center; border-top: 3px solid var(--accent4);">
+        <div style="font-size: 2rem; margin-bottom: 10px;">&#x2699;&#xFE0F;</div>
+        <h3>Стало</h3>
+        <p>Вопрос Claude на русском языке &#x2192; ответ за 1-2 секунды</p>
+      </div>
+      <div class="card" style="text-align: center; border-top: 3px solid var(--accent2);">
+        <div style="font-size: 2rem; margin-bottom: 10px;">&#x1F4C8;</div>
+        <h3>Дальше</h3>
+        <p>Больше норм, автообновление, проверка проектов на соответствие</p>
+      </div>
+    </div>
+
+    <div style="margin-top: 50px;">
+      <p style="color: var(--muted); font-size: 0.9rem;">
+        Стек: Python &bull; Obsidian &bull; sentence-transformers (e5-large) &bull; FastMCP &bull; NumPy &bull; scikit-learn
+      </p>
+    </div>
+  </div>
+  <div class="slide-counter">09 / 09</div>
+  <div class="footer-tag">NormGraph &bull; 2026</div>
+</section>
+
+<script>
+  // Highlight active nav dot on scroll
+  const slides = document.querySelectorAll('.slide');
+  const navLinks = document.querySelectorAll('.nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navLinks.forEach(link => {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { threshold: 0.5 });
+
+  slides.forEach(slide => observer.observe(slide));
+
+  // Keyboard navigation
+  document.addEventListener('keydown', (e) => {
+    const current = [...slides].findIndex(s => {
+      const rect = s.getBoundingClientRect();
+      return rect.top >= -100 && rect.top <= window.innerHeight / 2;
+    });
+
+    if (e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault();
+      if (current < slides.length - 1) slides[current + 1].scrollIntoView({ behavior: 'smooth' });
+    } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+      e.preventDefault();
+      if (current > 0) slides[current - 1].scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+</script>
+
+</body>
+</html>
