@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "generated_at": "2026-04-17T15:52:09+00:00",
+    "source": "codes",
+    "input_path": null,
+    "total_discovered": 2,
+    "total_resolved": 2,
+    "total_unresolved": 0,
+    "family_stats": {
+      "СНиП": {
+        "total": 1,
+        "resolved": 1,
+        "unresolved": 0
+      },
+      "СП": {
+        "total": 1,
+        "resolved": 1,
+        "unresolved": 0
+      }
+    }
+  },
+  "resolved": [
+    {
+      "raw_norm": "СНиП 3.05.01-85",
+      "normalized_norm": "СНиП 3.05.01-85",
+      "detected_family": "СНиП",
+      "supported_family": true,
+      "resolution_reason": "manual_override",
+      "affected_findings": [],
+      "contexts": [],
+      "cited_as": [
+        "СНиП 3.05.01-85"
+      ],
+      "matched_code": "СНиП 3.05.01-85",
+      "status": "unknown"
+    },
+    {
+      "raw_norm": "СП 7.13130.2013",
+      "normalized_norm": "СП 7.13130.2013",
+      "detected_family": "СП",
+      "supported_family": true,
+      "resolution_reason": "manual_override",
+      "affected_findings": [],
+      "contexts": [],
+      "cited_as": [
+        "СП 7.13130.2013"
+      ],
+      "matched_code": "СП 7.13130.2013",
+      "status": "unknown"
+    }
+  ],
+  "unresolved": []
+}

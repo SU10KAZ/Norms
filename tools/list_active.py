@@ -51,7 +51,11 @@ def build_index(overrides: dict[str, object]) -> dict:
             parse_failures.append(md.name)
 
         override = overrides.get(code)
-        if override == "cancelled":
+        # Поддержка расширенного формата status_overrides.yaml (doc_status/...)
+        is_cancelled = override == "cancelled" or (
+            isinstance(override, dict) and str(override.get("doc_status", "")).lower() == "cancelled"
+        )
+        if is_cancelled:
             skipped_cancelled.append(code)
             continue
 
@@ -63,8 +67,11 @@ def build_index(overrides: dict[str, object]) -> dict:
             "file": parsed["file"],
             "status": "active",
         }
-        if isinstance(override, dict) and "replaced_by" in override:
-            entry["replaced_by"] = override["replaced_by"]
+        if isinstance(override, dict):
+            if "replaced_by" in override and override["replaced_by"]:
+                entry["replaced_by"] = override["replaced_by"]
+            elif str(override.get("doc_status", "")).lower() == "replaced" and override.get("replacement_doc"):
+                entry["replaced_by"] = override["replacement_doc"]
         active.append(entry)
 
     return {

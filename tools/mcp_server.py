@@ -1,10 +1,15 @@
 """MCP-сервер для работы с нормативной базой.
 
-Tools:
+Text tools (человекочитаемый вывод, совместимы с прежним поведением):
   - list_norms: список действующих норм (с фильтром по типу/коду)
   - find_paragraph: найти пункт по коду нормы и номеру пункта
   - search: семантический поиск по пунктам нормативных документов
   - norm_info: информация о конкретной норме (связи, соседи)
+
+JSON tools (машинный вывод, для использования из других проектов):
+  - get_norm_status: статус нормы по «грязному» вводу (active/replaced/cancelled/unknown)
+  - get_paragraph_json: структурированный payload пункта
+  - semantic_search_json: список результатов семантического поиска
 
 Запуск:
     cd norms_search && source venv/bin/activate
@@ -212,6 +217,68 @@ def norm_info(code: str) -> str:
             lines.append(f"  ... ещё {len(incoming) - 15}")
 
     return "\n".join(lines)
+
+
+@mcp.tool()
+def get_norm_status(code: str) -> dict:
+    """Authoritative статус нормы по «грязному» вводу.
+
+    Источник истины — status_index.json (build_status_index.py собирает его
+    из vault/ + status_overrides.yaml). Никакого WebSearch.
+
+    Args:
+        code: код нормы в любом написании.
+
+    Returns:
+        dict. Ключевые поля: query, normalized_query, found, matched_code,
+        status (active|outdated_edition|replaced|cancelled|unknown),
+        doc_status, edition_status, authoritative, resolution_reason
+        (exact|alias|manual_override|not_in_index|unsupported_family|not_found),
+        detected_family, supported_family, needs_manual_addition,
+        replacement_doc, current_version, title, file, type, year,
+        details, source_url, last_verified, parse_confidence, source.
+    """
+    from norms_api import get_norm_status as _get_norm_status
+
+    return _get_norm_status(code)
+
+
+@mcp.tool()
+def get_paragraph_json(code: str, paragraph: str, max_lines: int = 50) -> dict:
+    """JSON-поиск пункта. Никогда не бросает исключение.
+
+    Args:
+        code: код нормы
+        paragraph: номер пункта ("15.30", "1.1", "3")
+        max_lines: лимит строк текста в ответе
+
+    Returns:
+        dict. Ключевые поля: query_code, matched_code, paragraph, found,
+        text, file, line, status, doc_status, edition_status, authoritative,
+        has_text, resolution_reason (exact|alias|manual_override|
+        no_document_text|paragraph_not_found|not_in_index|unsupported_family|
+        not_found), replacement_doc, truncated.
+    """
+    from norms_api import get_paragraph as _get_paragraph
+
+    return _get_paragraph(code, paragraph, max_lines)
+
+
+@mcp.tool()
+def semantic_search_json(query: str, top: int = 5, code_filter: str = "") -> list[dict]:
+    """JSON-версия семантического поиска. Пустой запрос/ошибка → [].
+
+    Args:
+        query: запрос на естественном языке
+        top: количество результатов
+        code_filter: подстрока для фильтра по коду (напр. "СП")
+
+    Returns:
+        list[dict] с полями score, code, paragraph, file, line, text.
+    """
+    from norms_api import semantic_search as _semantic_search
+
+    return _semantic_search(query, top, code_filter or None)
 
 
 if __name__ == "__main__":
